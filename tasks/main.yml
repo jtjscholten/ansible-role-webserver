@@ -1,0 +1,42 @@
+- name: Verwijder nginx als het is geïnstalleerd
+  ansible.builtin.apt:
+    name: nginx
+    state: absent
+    purge: yes
+  ignore_errors: yes
+
+- name: Autoremove ongebruikte pakketten
+  ansible.builtin.apt:
+    autoremove: yes
+  when: ansible_os_family == "Debian"
+
+- name: Installeer web packages
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  loop: "{{ web_packages }}"
+  notify: Restart Apache
+
+- name: Fix ServerName foutmelding in Apache
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/apache2.conf
+    line: 'ServerName localhost'
+
+- name: Controleer Apache configuratie
+  ansible.builtin.command: apachectl configtest
+  register: apache_config_check
+  failed_when: apache_config_check.stderr is search('Syntax OK') == false
+
+- name: Start Apache als config geldig is
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+    enabled: true
+  when: apache_config_check.stderr is search('Syntax OK')
+
+- name: Controleer of apache2 poort 80 luistert
+  ansible.builtin.shell: ss -tuln | grep ':80'
+  register: apache_port_check
+  changed_when: false
+  failed_when: apache_port_check.rc != 0

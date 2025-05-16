@@ -1,0 +1,4 @@
+web_packages:
+  - apache2
+  - php
+  - php-mysql
